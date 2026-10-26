@@ -26,7 +26,6 @@ import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.bukkit.util.PaperInterop;
 import com.sk89q.worldguard.session.MoveType;
 import com.sk89q.worldguard.session.Session;
-import io.papermc.lib.PaperLib;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.AbstractHorse;
@@ -42,8 +41,6 @@ import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.util.Vector;
-
-import java.util.function.Consumer;
 
 public class PlayerMoveListener extends AbstractListener {
 
@@ -80,7 +77,6 @@ public class PlayerMoveListener extends AbstractListener {
     }
 
     @EventHandler(priority = EventPriority.HIGH)
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public void onPlayerMove(PlayerMoveEvent event) {
         Location from = event.getFrom();
         Location to = event.getTo();
@@ -133,20 +129,14 @@ public class PlayerMoveListener extends AbstractListener {
                 }
 
                 Location playerDismountLocation = override.clone().add(0, 1, 0);
-                teleport(player, playerDismountLocation);
-
-
-                Location delayedDismountLocation = override.clone().add(0, 1, 0);
-                Runnable task = () -> teleport(player, delayedDismountLocation);
                 if (getPlugin().isFolia()) {
-                    player.getScheduler().runDelayed(getPlugin(), new Consumer() {
-                        @Override
-                        public void accept(Object ignored) {
-                            task.run();
-                        }
-                    }, null, 1);
+                    // Canvas rejects teleports made inside a move event. setTo corrects this tick.
+                    event.setTo(playerDismountLocation.clone());
+                    teleport(player, playerDismountLocation);
                 } else {
-                    Bukkit.getScheduler().runTaskLater(getPlugin(), task, 1);
+                    teleport(player, playerDismountLocation);
+                    Location delayedDismountLocation = override.clone().add(0, 1, 0);
+                    Bukkit.getScheduler().runTaskLater(getPlugin(), () -> teleport(player, delayedDismountLocation), 1);
                 }
             }
         }
@@ -160,31 +150,22 @@ public class PlayerMoveListener extends AbstractListener {
         Session session = WorldGuard.getInstance().getPlatform().getSessionManager().get(localPlayer);
         com.sk89q.worldedit.util.Location loc = session.testMoveTo(localPlayer,
             BukkitAdapter.adapt(event.getPlayer().getLocation()), MoveType.OTHER_CANCELLABLE); // white lie
-        if (loc != null) {
-            if (getPlugin().isFolia()) {
-                PaperInterop.teleportAsync(player, BukkitAdapter.adapt(loc));
-            } else {
-                player.teleport(BukkitAdapter.adapt(loc));
-            }
+        if (loc != null && !getPlugin().isFolia()) {
+            // Canvas 26.2+ throws if a player is teleported during logout.
+            player.teleport(BukkitAdapter.adapt(loc));
         }
 
         session.uninitialize(localPlayer);
     }
 
     /**
-     * Small utility method to teleport via async or sync methods depending on platform.
-     *
-     * <p>Ideally we can make this use PaperLib in the future once it's better tested.</p>
+     * Teleport an entity using the region-safe path on Folia and Canvas.
      *
      * @param entity The entity to teleport
      * @param location The location to teleport to
      */
     private void teleport(Entity entity, Location location) {
-        if (getPlugin().isFolia()) {
-            PaperInterop.teleportAsync(entity, location);
-        } else {
-            entity.teleport(location);
-        }
+        PaperInterop.teleportLater(getPlugin(), entity, location);
     }
 
     @EventHandler

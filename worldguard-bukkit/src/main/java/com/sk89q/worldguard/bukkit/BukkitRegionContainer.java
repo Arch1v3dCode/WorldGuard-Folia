@@ -128,12 +128,20 @@ public class BukkitRegionContainer extends RegionContainer {
             manager = container.load(world.getName());
 
             if (manager != null) {
-                // Bias the region data for loaded chunks
+                // Bias the region data for loaded chunks. Queries still work without this;
+                // it only warms the chunk index. Folia and Canvas may reject a world-wide scan.
                 List<BlockVector2> positions = new ArrayList<>();
-                for (Chunk chunk : ((BukkitWorld) world).getWorld().getLoadedChunks()) {
-                    positions.add(BlockVector2.at(chunk.getX(), chunk.getZ()));
+                try {
+                    for (Chunk chunk : ((BukkitWorld) world).getWorld().getLoadedChunks()) {
+                        positions.add(BlockVector2.at(chunk.getX(), chunk.getZ()));
+                    }
+                } catch (UnsupportedOperationException | IllegalStateException ex) {
+                    WorldGuard.logger.warning("Skipping loaded-chunk region bias for " + world.getName()
+                            + " because this server rejected a world-wide chunk scan.");
                 }
-                manager.loadChunks(positions);
+                if (!positions.isEmpty()) {
+                    manager.loadChunks(positions);
+                }
             }
         }
 

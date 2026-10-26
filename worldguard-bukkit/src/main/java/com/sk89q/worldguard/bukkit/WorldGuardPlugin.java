@@ -171,6 +171,7 @@ public class WorldGuardPlugin extends JavaPlugin {
         }
 
         if (this.isFolia()) {
+            getLogger().info("Region threading detected (Folia or Canvas). Using region and entity schedulers.");
             getServer().getGlobalRegionScheduler().runAtFixedRate(this, new Consumer() {
                 @Override
                 public void accept(Object ignored) {
@@ -557,20 +558,52 @@ public class WorldGuardPlugin extends JavaPlugin {
         return playerMoveListener;
     }
 
-    private final LazyReference<Boolean> folia = LazyReference.from(() -> {
+    private final LazyReference<Boolean> folia = LazyReference.from(this::detectRegionThreading);
+
+    /**
+     * Detect Folia and Folia forks such as Canvas.
+     *
+     * <p>Canvas does not always report itself as {@code papermc:folia}, but it uses the same
+     * region threading rules and rejects the Bukkit scheduler.</p>
+     */
+    private boolean detectRegionThreading() {
         try {
-            // Folia is Paper-based, so this is a good first check.
             if (PaperLib.isPaper()) {
-                return ServerBuildInfo.buildInfo().isBrandCompatible(net.kyori.adventure.key.Key.key("papermc", "folia"));
+                ServerBuildInfo info = ServerBuildInfo.buildInfo();
+                if (info.isBrandCompatible(net.kyori.adventure.key.Key.key("papermc", "folia"))) {
+                    return true;
+                }
+                net.kyori.adventure.key.Key brand = info.brandId();
+                if (brand != null) {
+                    String namespace = brand.namespace();
+                    String value = brand.value();
+                    if ("folia".equals(value) || "canvas".equals(value)
+                            || namespace.contains("canvas") || "canvasmc".equals(namespace)) {
+                        return true;
+                    }
+                }
+                // Canvas publishes this brand. The check is safe on servers that do not know it.
+                if (info.isBrandCompatible(net.kyori.adventure.key.Key.key("canvasmc", "canvas"))) {
+                    return true;
+                }
             }
         } catch (Throwable t) {
-            // Ignore, this likely means an outdated version.
-            LOGGER.warn("Failed to check if server is running Folia", t);
+            LOGGER.warn("Failed to check if server uses region threading", t);
         }
 
-        return false;
-    });
+        try {
+            // Present on Folia and Canvas, absent on Paper and Spigot.
+            Class.forName("io.papermc.paper.threadedregions.RegionizedServer", false, Bukkit.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException ignored) {
+            // Paper and Spigot do not ship Folia's region server.
+            return false;
+        }
+    }
 
+    /**
+     * @return true when running on Folia or a Folia fork such as Canvas
+     */
     public boolean isFolia() {
         return folia.getValue();
     }

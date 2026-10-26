@@ -117,10 +117,23 @@ public class BukkitSessionManager extends AbstractSessionManager implements Runn
         return super.hasBypass(player, world);
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void shutdown() {
         for (Player player : Bukkit.getServer().getOnlinePlayers()) {
-            LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
-            get(localPlayer).uninitialize(localPlayer);
+            Runnable task = () -> {
+                LocalPlayer localPlayer = WorldGuardPlugin.inst().wrapPlayer(player);
+                get(localPlayer).uninitialize(localPlayer);
+            };
+            if (WorldGuardPlugin.inst().isFolia()) {
+                player.getScheduler().run(WorldGuardPlugin.inst(), new Consumer() {
+                    @Override
+                    public void accept(Object ignored) {
+                        task.run();
+                    }
+                }, null);
+            } else {
+                task.run();
+            }
         }
     }
 }

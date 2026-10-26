@@ -3,4 +3,6 @@ main: com.sk89q.worldguard.bukkit.WorldGuardPlugin
 version: "${internalVersion}"
 depend: [WorldEdit]
 api-version: "26.3"
+# Folia and Canvas both load plugins marked folia-supported.
+# canvas-supported is only for plugins that require Canvas-only APIs.
 folia-supported: true

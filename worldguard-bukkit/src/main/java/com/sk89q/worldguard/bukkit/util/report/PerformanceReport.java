@@ -40,11 +40,23 @@ public class PerformanceReport extends DataReport {
         append("World Count", worlds.size());
 
         for (World world : worlds) {
-            int loadedChunkCount = world.getLoadedChunks().length;
+            int loadedChunkCount;
+            Chunk[] loadedChunks;
+            List<Entity> worldEntities;
+            try {
+                loadedChunks = world.getLoadedChunks();
+                loadedChunkCount = loadedChunks.length;
+                worldEntities = world.getEntities();
+            } catch (UnsupportedOperationException | IllegalStateException ex) {
+                DataReport skipped = new DataReport("World: " + world.getName());
+                skipped.append("Counts", "skipped (region threading)");
+                append(skipped.getTitle(), skipped);
+                continue;
+            }
 
             DataReport report = new DataReport("World: " + world.getName());
             report.append("Keep in Memory?", world.getKeepSpawnInMemory());
-            report.append("Entity Count", world.getEntities().size());
+            report.append("Entity Count", worldEntities.size());
             report.append("Chunk Count", loadedChunkCount);
 
             Map<Class<? extends Entity>, Integer> entityCounts = Maps.newHashMap();
@@ -52,7 +64,7 @@ public class PerformanceReport extends DataReport {
 
             // Collect tile entities
             int teCount = 0;
-            for (Chunk chunk : world.getLoadedChunks()) {
+            for (Chunk chunk : loadedChunks) {
                 teCount += chunk.getTileEntities().length;
                 for (BlockState state : chunk.getTileEntities()) {
                     Class<? extends BlockState> cls = state.getClass();
@@ -67,7 +79,7 @@ public class PerformanceReport extends DataReport {
             report.append("Tile Entity Count", teCount);
 
             // Collect entities
-            for (Entity entity : world.getEntities()) {
+            for (Entity entity : worldEntities) {
                 Class<? extends Entity> cls = entity.getClass();
 
                 if (entityCounts.containsKey(cls)) {

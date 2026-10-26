@@ -61,6 +61,7 @@ import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerTeleportEvent.TeleportCause;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -113,7 +114,12 @@ public class WorldGuardPlayerListener extends AbstractListener {
 
             int removed = 0;
 
-            for (Entity entity : world.getEntities()) {
+            // World-wide entity scans cross region threads. On Folia and Canvas, only the
+            // chunk owned by this join event is safe to touch.
+            Iterable<Entity> entities = getPlugin().isFolia()
+                    ? Arrays.asList(player.getLocation().getChunk().getEntities())
+                    : world.getEntities();
+            for (Entity entity : entities) {
                 if (Entities.isIntensiveEntity(BukkitAdapter.adapt(entity))) {
                     entity.remove();
                     removed++;

@@ -19,6 +19,7 @@
 
 package com.sk89q.worldguard.bukkit.util;
 
+import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import io.papermc.lib.PaperLib;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
@@ -26,6 +27,7 @@ import org.bukkit.block.BlockState;
 import org.bukkit.entity.Entity;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.plugin.Plugin;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -60,5 +62,27 @@ public class PaperInterop {
         }
 
         return CompletableFuture.completedFuture(entity.teleport(location));
+    }
+
+    /**
+     * Teleport an entity without calling the synchronous teleport API.
+     *
+     * <p>Folia and Canvas reject {@code Entity#teleport}. Canvas also rejects teleports made
+     * directly inside move events and during login or logout, so region-threaded servers
+     * run the teleport on the entity scheduler one tick later.</p>
+     */
+    public static void teleportLater(@Nonnull Plugin plugin, @Nonnull Entity entity, @Nonnull Location location) {
+        Location destination = location.clone();
+        if (WorldGuardPlugin.inst().isFolia()) {
+            entity.getScheduler().runDelayed(plugin, task -> {
+                if (!entity.isValid()) {
+                    return;
+                }
+                teleportAsync(entity, destination);
+            }, null, 1L);
+            return;
+        }
+
+        entity.teleport(destination);
     }
 }
