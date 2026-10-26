@@ -14,6 +14,7 @@ WorldGuard lets you and players guard areas of land against griefers and undesir
 * Disable, or enable, various Minecraft features, like sponges from classic
 * Add useful commands like an immediate "STOP ALL FIRE SPREAD" command
 * Enable only features you want! Everything is off by default
+* Added Folia support
 
 WorldGuard is open source and is available under the GNU Lesser
 General Public License v3.
